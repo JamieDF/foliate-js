@@ -52,8 +52,8 @@ export class FixedLayout extends HTMLElement {
             width: 100%;
             height: 100%;
             display: flex;
-            justify-content: center;
-            align-items: center;
+            justify-content: safe center;
+            align-items: safe center;
             overflow: auto;
         }`)
 
@@ -284,6 +284,12 @@ export class FixedLayout extends HTMLElement {
             await this.#showSpread({ left, right, side })
         }
         this.#reportLocation(reason)
+    }
+    async reload() {
+        const idx = this.#index
+        if (idx < 0) return
+        this.#index = -1
+        await this.goToSpread(idx, this.#side ?? 'center')
     }
     async select(target) {
         await this.goTo(target)
