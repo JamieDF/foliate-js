@@ -1,23 +1,21 @@
-const pdfjsPath = path => new URL(`vendor/pdfjs/${path}`, import.meta.url).toString()
-
+// Note: this file uses Vite-specific imports (?url, ?raw) and is intended for bundler use.
 import './vendor/pdfjs/pdf.mjs'
 const pdfjsLib = globalThis.pdfjsLib
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsPath('pdf.worker.mjs')
-
-const fetchText = async url => await (await fetch(url)).text()
+import pdfjsWorkerUrl from './vendor/pdfjs/pdf.worker.mjs?url'
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl
 
 // https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/text_layer_builder.css
-const textLayerBuilderCSS = await fetchText(pdfjsPath('text_layer_builder.css'))
+import textLayerBuilderCSS from './vendor/pdfjs/text_layer_builder.css?raw'
 
 // https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/annotation_layer_builder.css
-const annotationLayerBuilderCSS = await fetchText(pdfjsPath('annotation_layer_builder.css'))
+import annotationLayerBuilderCSS from './vendor/pdfjs/annotation_layer_builder.css?raw'
 
-const render = async (page, doc, zoom) => {
+const render = async (page, doc, zoom, rotation = 0) => {
     const scale = zoom * devicePixelRatio
     doc.documentElement.style.transform = `scale(${1 / devicePixelRatio})`
     doc.documentElement.style.transformOrigin = 'top left'
     doc.documentElement.style.setProperty('--scale-factor', scale)
-    const viewport = page.getViewport({ scale })
+    const viewport = page.getViewport({ scale, rotation })
 
     // the canvas must be in the `PDFDocument`'s `ownerDocument`
     // (`globalThis.document` by default); that's where the fonts are loaded
@@ -66,8 +64,8 @@ const render = async (page, doc, zoom) => {
         .render({ annotations: await page.getAnnotations() })
 }
 
-const renderPage = async (page, getImageBlob) => {
-    const viewport = page.getViewport({ scale: 1 })
+const renderPage = async (page, getImageBlob, rotation = 0) => {
+    const viewport = page.getViewport({ scale: 1, rotation })
     if (getImageBlob) {
         const canvas = document.createElement('canvas')
         canvas.height = viewport.height
@@ -102,14 +100,14 @@ const renderPage = async (page, getImageBlob) => {
         <div class="textLayer"></div>
         <div class="annotationLayer"></div>
     `], { type: 'text/html' }))
-    const onZoom = ({ doc, scale }) => render(page, doc, scale)
+    const onZoom = ({ doc, scale }) => render(page, doc, scale, rotation)
     return { src, onZoom }
 }
 
 const makeTOCItem = item => ({
     label: item.title,
     href: JSON.stringify(item.dest),
-    subitems: item.items.length ? item.items.map(makeTOCItem) : null,
+    subitems: item.items?.length ? item.items.map(makeTOCItem) : null,
 })
 
 export const makePDF = async file => {
@@ -121,12 +119,10 @@ export const makePDF = async file => {
     }
     const pdf = await pdfjsLib.getDocument({
         range: transport,
-        cMapUrl: pdfjsPath('cmaps/'),
-        standardFontDataUrl: pdfjsPath('standard_fonts/'),
         isEvalSupported: false,
     }).promise
 
-    const book = { rendition: { layout: 'pre-paginated' } }
+    const book = { rendition: { layout: 'pre-paginated', spread: 'none' } }
 
     const { metadata, info } = await pdf.getMetadata() ?? {}
     // TODO: for better results, parse `metadata.getRaw()`
@@ -146,18 +142,23 @@ export const makePDF = async file => {
     const outline = await pdf.getOutline()
     book.toc = outline?.map(makeTOCItem)
 
+    let currentRotation = 0
     const cache = new Map()
     book.sections = Array.from({ length: pdf.numPages }).map((_, i) => ({
         id: i,
         load: async () => {
             const cached = cache.get(i)
             if (cached) return cached
-            const url = await renderPage(await pdf.getPage(i + 1))
+            const url = await renderPage(await pdf.getPage(i + 1), false, currentRotation)
             cache.set(i, url)
             return url
         },
         size: 1000,
     }))
+    book.setRotation = rotation => {
+        currentRotation = rotation
+        cache.clear()
+    }
     book.isExternal = uri => /^\w+:/i.test(uri)
     book.resolveHref = async href => {
         const parsed = JSON.parse(href)
