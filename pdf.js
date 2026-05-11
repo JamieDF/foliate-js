@@ -1,16 +1,14 @@
-const pdfjsPath = path => new URL(`vendor/pdfjs/${path}`, import.meta.url).toString()
-
+// Note: this file uses Vite-specific imports (?url, ?raw) and is intended for bundler use.
 import './vendor/pdfjs/pdf.mjs'
 const pdfjsLib = globalThis.pdfjsLib
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsPath('pdf.worker.mjs')
-
-const fetchText = async url => await (await fetch(url)).text()
+import pdfjsWorkerUrl from './vendor/pdfjs/pdf.worker.mjs?url'
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl
 
 // https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/text_layer_builder.css
-const textLayerBuilderCSS = await fetchText(pdfjsPath('text_layer_builder.css'))
+import textLayerBuilderCSS from './vendor/pdfjs/text_layer_builder.css?raw'
 
 // https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/annotation_layer_builder.css
-const annotationLayerBuilderCSS = await fetchText(pdfjsPath('annotation_layer_builder.css'))
+import annotationLayerBuilderCSS from './vendor/pdfjs/annotation_layer_builder.css?raw'
 
 const render = async (page, doc, zoom, rotation = 0) => {
     const scale = zoom * devicePixelRatio
@@ -121,8 +119,6 @@ export const makePDF = async file => {
     }
     const pdf = await pdfjsLib.getDocument({
         range: transport,
-        cMapUrl: pdfjsPath('cmaps/'),
-        standardFontDataUrl: pdfjsPath('standard_fonts/'),
         isEvalSupported: false,
     }).promise
 
