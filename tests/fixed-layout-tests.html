@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>running</title>
+<style>
+    body { font-family: monospace; padding: 1em; }
+    .pass { color: green; }
+    .fail { color: red; font-weight: bold; }
+</style>
+<script type="module">
+import '../fixed-layout.js'
+
+const out = document.createElement('pre')
+document.body.appendChild(out)
+
+const results = []
+const log = (ok, name, detail = '') => {
+    const line = `${ok ? '✓' : '✗'} ${name}${detail ? ': ' + detail : ''}`
+    const el = document.createElement('div')
+    el.className = ok ? 'pass' : 'fail'
+    el.textContent = line
+    out.appendChild(el)
+    results.push({ ok, name })
+}
+
+const raf = () => new Promise(r => requestAnimationFrame(r))
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const near = (a, b, eps = 0.01) => Math.abs(a - b) <= eps
+
+const makePageSrc = (w, h, color = 'blue') => {
+    const html = `<!DOCTYPE html><html><head>
+        <meta name="viewport" content="width=${w}, height=${h}">
+        </head><body style="margin:0;background:${color};width:${w}px;height:${h}px"></body></html>`
+    return URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+}
+
+const makeBook = (w, h) => ({
+    dir: 'ltr',
+    rendition: { spread: 'none', viewport: null },
+    sections: [
+        { load: () => makePageSrc(w, h), pageSpread: 'center' },
+        { load: () => makePageSrc(w, h, 'green'), pageSpread: 'center' },
+    ],
+})
+
+const test = async (name, fn) => {
+    try {
+        await fn()
+        log(true, name)
+    } catch (e) {
+        log(false, name, e.message)
+    }
+}
+
+const host = document.createElement('div')
+Object.assign(host.style, {
+    width: '400px', height: '600px',
+    position: 'fixed', top: '0', left: '0',
+})
+document.body.appendChild(host)
+
+const fxl = document.createElement('foliate-fxl')
+Object.assign(fxl.style, { display: 'block', width: '100%', height: '100%' })
+host.appendChild(fxl)
+
+// ---- tests without loaded frames ----
+
+await test('element is defined', async () => {
+    if (!customElements.get('foliate-fxl')) throw new Error('not defined')
+})
+
+await test('initial currentScale is 1', async () => {
+    if (!near(fxl.currentScale, 1)) throw new Error(`got ${fxl.currentScale}`)
+})
+
+await test('zoom attribute updates currentScale', async () => {
+    fxl.setAttribute('zoom', '2')
+    await raf()
+    if (!near(fxl.currentScale, 2)) throw new Error(`expected 2, got ${fxl.currentScale}`)
+    fxl.setAttribute('zoom', '1')
+    await raf()
+    if (!near(fxl.currentScale, 1)) throw new Error(`expected 1, got ${fxl.currentScale}`)
+})
+
+await test('scale clamped at MAX=10', async () => {
+    fxl.setAttribute('zoom', '100')
+    await raf()
+    if (!near(fxl.currentScale, 10)) throw new Error(`expected 10, got ${fxl.currentScale}`)
+    fxl.setAttribute('zoom', '1')
+    await raf()
+})
+
+await test('scale clamped at MIN=0.1', async () => {
+    fxl.setAttribute('zoom', '0.001')
+    await raf()
+    if (!near(fxl.currentScale, 0.1)) throw new Error(`expected 0.1, got ${fxl.currentScale}`)
+    fxl.setAttribute('zoom', '1')
+    await raf()
+})
+
+await test('wheel zoom-in increases scale', async () => {
+    const before = fxl.currentScale
+    fxl.dispatchEvent(new WheelEvent('wheel', {
+        deltaY: -100, clientX: 200, clientY: 300,
+        bubbles: true, cancelable: true,
+    }))
+    await raf(); await raf()
+    const after = fxl.currentScale
+    if (after <= before) throw new Error(`scale did not increase (${before} → ${after})`)
+    fxl.setAttribute('zoom', '1'); await raf()
+})
+
+await test('wheel zoom-out decreases scale', async () => {
+    const before = fxl.currentScale
+    fxl.dispatchEvent(new WheelEvent('wheel', {
+        deltaY: 100, clientX: 200, clientY: 300,
+        bubbles: true, cancelable: true,
+    }))
+    await raf(); await raf()
+    const after = fxl.currentScale
+    if (after >= before) throw new Error(`scale did not decrease (${before} → ${after})`)
+    fxl.setAttribute('zoom', '1'); await raf()
+})
+
+await test('wheel accumulates ratio correctly (two events, one rAF)', async () => {
+    // Two zoom-in events before the rAF fires should compound,
+    // not replace (the bug in PR #131).
+    const before = fxl.currentScale
+    fxl.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, clientX: 200, clientY: 300, bubbles: true, cancelable: true }))
+    fxl.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, clientX: 200, clientY: 300, bubbles: true, cancelable: true }))
+    await raf(); await raf()
+    const afterTwo = fxl.currentScale
+    // Reset and fire one event
+    fxl.setAttribute('zoom', '1'); await raf()
+    fxl.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, clientX: 200, clientY: 300, bubbles: true, cancelable: true }))
+    await raf(); await raf()
+    const afterOne = fxl.currentScale
+    fxl.setAttribute('zoom', '1'); await raf()
+    if (afterTwo <= afterOne) throw new Error(`two events should zoom more than one (one=${afterOne}, two=${afterTwo})`)
+})
+
+// ---- tests with a real loaded page ----
+
+const book = makeBook(400, 600) // same dimensions as host
+fxl.open(book)
+await fxl.goToSpread(0, 'center')
+await raf()
+
+await test('fit-page: currentScale ≈ 1 for matching viewport', async () => {
+    fxl.setAttribute('zoom', 'fit-page')
+    await raf()
+    if (!near(fxl.currentScale, 1)) throw new Error(`expected ~1, got ${fxl.currentScale}`)
+})
+
+await test('fit-page: scrollEdge is { atLeft: true, atRight: true }', async () => {
+    fxl.setAttribute('zoom', 'fit-page')
+    await raf()
+    const { atLeft, atRight } = fxl.scrollEdge
+    if (!atLeft || !atRight) throw new Error(`expected both true, got atLeft=${atLeft} atRight=${atRight}`)
+})
+
+await test('3x zoom centered: scrollEdge shows neither edge', async () => {
+    // Page 400px wide, viewport 400px wide: at 3x content=1200px, centered at x=-400.
+    // Neither edge is flush.
+    fxl.setAttribute('zoom', 'fit-page'); await raf()
+    fxl.setAttribute('zoom', '3'); await raf()
+    const { atLeft, atRight } = fxl.scrollEdge
+    if (atLeft || atRight) throw new Error(`expected both false, got atLeft=${atLeft} atRight=${atRight}`)
+    fxl.setAttribute('zoom', 'fit-page'); await raf()
+})
+
+await test('PDF debounce: onZoom fires after settle, not during every zoom step', async () => {
+    const zoomCalls = []
+
+    // Build a minimal PDF-like book: load() returns { src, onZoom }
+    const pdfjsBook = {
+        dir: 'ltr',
+        rendition: { spread: 'none', viewport: null },
+        sections: [{
+            load: () => ({
+                src: makePageSrc(400, 600),
+                onZoom: ({ doc, scale }) => zoomCalls.push(scale),
+            }),
+            pageSpread: 'center',
+        }],
+    }
+    fxl.open(pdfjsBook)
+    await fxl.reload()  // open() alone doesn't clear #index; reload() forces a real re-load
+    await raf()
+    zoomCalls.length = 0  // clear calls from initial render
+
+    // Fire several zoom wheel events rapidly
+    for (let i = 0; i < 5; i++) {
+        fxl.dispatchEvent(new WheelEvent('wheel', {
+            deltaY: -100, clientX: 200, clientY: 300, bubbles: true, cancelable: true,
+        }))
+    }
+    await raf(); await raf()
+    const callsDuringGesture = zoomCalls.length
+
+    // Wait for the 300ms settle timeout
+    await sleep(400)
+    const callsAfterSettle = zoomCalls.length
+
+    if (callsDuringGesture > 1) throw new Error(`expected 0-1 onZoom during gesture, got ${callsDuringGesture}`)
+    if (callsAfterSettle < 1) throw new Error('onZoom should fire after settle timeout')
+})
+
+// ---- summary ----
+
+const failures = results.filter(r => !r.ok)
+const summary = document.createElement('div')
+summary.style.marginTop = '1em'
+if (failures.length === 0) {
+    summary.textContent = `All ${results.length} tests passed`
+    summary.style.color = 'green'
+    document.title = 'PASS'
+} else {
+    summary.textContent = `${failures.length} / ${results.length} tests FAILED`
+    summary.style.color = 'red'
+    document.title = `FAIL (${failures.length})`
+}
+out.appendChild(summary)
+</script>

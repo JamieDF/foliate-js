@@ -10,9 +10,10 @@ import textLayerBuilderCSS from './vendor/pdfjs/text_layer_builder.css?raw'
 // https://raw.githubusercontent.com/mozilla/pdf.js/refs/tags/v5.5.207/web/annotation_layer_builder.css
 import annotationLayerBuilderCSS from './vendor/pdfjs/annotation_layer_builder.css?raw'
 
-const render = async (page, doc, zoom, rotation = 0) => {
-    const scale = zoom * devicePixelRatio
-    doc.documentElement.style.transform = `scale(${1 / devicePixelRatio})`
+const render = async (page, doc, zoom, rotation = 0, onCanvasReady = null) => {
+    const dpr = Math.min(devicePixelRatio, 2)
+    const scale = zoom * dpr
+    doc.documentElement.style.transform = `scale(${1 / dpr})`
     doc.documentElement.style.transformOrigin = 'top left'
     doc.documentElement.style.setProperty('--scale-factor', scale)
     const viewport = page.getViewport({ scale, rotation })
@@ -25,6 +26,8 @@ const render = async (page, doc, zoom, rotation = 0) => {
     const canvasContext = canvas.getContext('2d')
     await page.render({ canvasContext, viewport }).promise
     doc.querySelector('#canvas').replaceChildren(doc.adoptNode(canvas))
+    // Notify caller synchronously so it can swap CSS transforms before any paint.
+    onCanvasReady?.()
 
     const container = doc.querySelector('.textLayer')
     const textLayer = new pdfjsLib.TextLayer({
@@ -100,7 +103,7 @@ const renderPage = async (page, getImageBlob, rotation = 0) => {
         <div class="textLayer"></div>
         <div class="annotationLayer"></div>
     `], { type: 'text/html' }))
-    const onZoom = ({ doc, scale }) => render(page, doc, scale, rotation)
+    const onZoom = ({ doc, scale, onCanvasReady }) => render(page, doc, scale, rotation, onCanvasReady)
     return { src, onZoom }
 }
 
