@@ -1,3 +1,8 @@
+// -- OffReader patch: polyfills for Node.js-only Uint8Array methods --
+function bytesToHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("")}
+function bytesToBase64(bytes){let s="";for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s)}
+function base64ToBytes(str){return Uint8Array.from(atob(str),c=>c.charCodeAt(0))}
+// -- end OffReader patch --
 /**
  * @licstart The following is the entire license notice for the
  * JavaScript code in this page
@@ -7431,7 +7436,7 @@ class FontFaceObject {
     if (!this.data || this.disableFontFace) {
       return null;
     }
-    const url = `url(data:${this.mimetype};base64,${this.data.toBase64()});`;
+    const url = `url(data:${this.mimetype};base64,${bytesToBase64(this.data)});`;
     let rule;
     if (!this.cssFontInfo) {
       rule = `@font-face {font-family:"${this.loadedName}";src:${url}}`;
@@ -24260,11 +24265,11 @@ class SignatureExtractor {
     writer.close();
     const buf = await new Response(cs.readable).arrayBuffer();
     const bytes = new Uint8Array(buf);
-    return bytes.toBase64();
+    return bytesToBase64(bytes);
   }
   static async decompressSignature(signatureData) {
     try {
-      const bytes = Uint8Array.fromBase64(signatureData);
+      const bytes = base64ToBytes(signatureData);
       const {
         readable,
         writable

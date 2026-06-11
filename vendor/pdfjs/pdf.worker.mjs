@@ -1,3 +1,8 @@
+// -- OffReader patch: polyfills for Node.js-only Uint8Array methods --
+function bytesToHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("")}
+function bytesToBase64(bytes){let s="";for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s)}
+function base64ToBytes(str){return Uint8Array.from(atob(str),c=>c.charCodeAt(0))}
+// -- end OffReader patch --
 /**
  * @licstart The following is the entire license notice for the
  * JavaScript code in this page
@@ -46913,7 +46918,7 @@ class Image extends StringObject {
       return HTMLResult.EMPTY;
     }
     if (!buffer && this.transferEncoding === "base64") {
-      buffer = Uint8Array.fromBase64(this[$content]);
+      buffer = base64ToBytes(this[$content]);
     }
     if (!buffer) {
       return HTMLResult.EMPTY;
@@ -59572,7 +59577,7 @@ class PDFDocument {
     } else {
       hashOriginal = calculateMD5(this.stream.getByteRange(0, FINGERPRINT_FIRST_BYTES), 0, FINGERPRINT_FIRST_BYTES);
     }
-    return shadow(this, "fingerprints", [hashOriginal.toHex(), hashModified?.toHex() ?? null]);
+    return shadow(this, "fingerprints", [bytesToHex(hashOriginal), hashModified ? bytesToHex(hashModified) : null]);
   }
   async #getLinearizationPage(pageIndex) {
     const {
