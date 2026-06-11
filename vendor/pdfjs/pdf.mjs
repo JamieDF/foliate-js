@@ -1,7 +1,8 @@
-// -- OffReader patch: polyfills for Node.js-only Uint8Array methods --
+// -- OffReader patch: polyfills for APIs not in browser/worker contexts --
 function bytesToHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("")}
 function bytesToBase64(bytes){let s="";for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s)}
 function base64ToBytes(str){return Uint8Array.from(atob(str),c=>c.charCodeAt(0))}
+if(typeof Map.prototype.getOrInsertComputed!=="function"){Map.prototype.getOrInsertComputed=function(key,fn){if(this.has(key))return this.get(key);const val=fn();this.set(key,val);return val}}
 // -- end OffReader patch --
 /**
  * @licstart The following is the entire license notice for the

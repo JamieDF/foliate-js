@@ -3,11 +3,12 @@ import terser from '@rollup/plugin-terser'
 import { copy } from 'fs-extra'
 import { readFileSync, writeFileSync } from 'fs'
 
-// Utility functions injected into pdfjs files to replace Node.js-only Uint8Array methods.
-const PATCH_UTILS = `// -- OffReader patch: polyfills for Node.js-only Uint8Array methods --
+// Polyfills injected into pdfjs files to replace APIs not available in browser/worker contexts.
+const PATCH_UTILS = `// -- OffReader patch: polyfills for APIs not in browser/worker contexts --
 function bytesToHex(bytes){return Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("")}
 function bytesToBase64(bytes){let s="";for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s)}
 function base64ToBytes(str){return Uint8Array.from(atob(str),c=>c.charCodeAt(0))}
+if(typeof Map.prototype.getOrInsertComputed!=="function"){Map.prototype.getOrInsertComputed=function(key,fn){if(this.has(key))return this.get(key);const val=fn();this.set(key,val);return val}}
 // -- end OffReader patch --
 `
 
@@ -22,7 +23,7 @@ const copyAndPatchPDFJS = () => ({
         await copy('node_modules/pdfjs-dist/cmaps', 'vendor/pdfjs/cmaps')
         await copy('node_modules/pdfjs-dist/standard_fonts', 'vendor/pdfjs/standard_fonts')
 
-        // Step 2: Patch non-standard Uint8Array methods (Node.js-only, not in browser/worker)
+        // Step 2: Patch non-standard APIs (not available in browser/worker contexts)
         // When updating pdfjs-dist, run `npm run build` — if any target has changed,
         // the build fails with a clear error showing which string wasn't found.
         const patches = [
