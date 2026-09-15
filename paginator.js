@@ -242,7 +242,7 @@ class View {
         })
         // `allow-scripts` is needed for events because of WebKit bug
         // https://bugs.webkit.org/show_bug.cgi?id=218086
-        this.#iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts')
+        this.#iframe.setAttribute('sandbox', 'allow-scripts')
         this.#iframe.setAttribute('scrolling', 'no')
     }
     get element() {
@@ -362,7 +362,8 @@ class View {
         }
     }
     expand() {
-        const { documentElement } = this.document
+        const documentElement = this.document?.documentElement
+        if (!documentElement) return
         if (this.#column) {
             const side = this.#vertical ? 'height' : 'width'
             const otherSide = this.#vertical ? 'width' : 'height'
