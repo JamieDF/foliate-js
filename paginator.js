@@ -240,9 +240,9 @@ class View {
             display: 'none',
             width: '100%', height: '100%',
         })
-        // `allow-scripts` is needed for events because of WebKit bug
-        // https://bugs.webkit.org/show_bug.cgi?id=218086
-        this.#iframe.setAttribute('sandbox', 'allow-scripts')
+        // Keep the document origin so Firefox can load blob URLs, while
+        // withholding script execution from untrusted book content.
+        this.#iframe.setAttribute('sandbox', 'allow-same-origin')
         this.#iframe.setAttribute('scrolling', 'no')
     }
     get element() {
