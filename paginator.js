@@ -240,12 +240,9 @@ class View {
             display: 'none',
             width: '100%', height: '100%',
         })
-        // Firefox needs the document origin to load blob URLs. Other
-        // browsers need scripts for iframe event handling.
-        const sandbox = navigator.userAgent.includes('Firefox')
-            ? 'allow-same-origin'
-            : 'allow-scripts'
-        this.#iframe.setAttribute('sandbox', sandbox)
+        // Preserve the origin so blob-backed book documents can load.
+        // Scripts remain disabled for untrusted book content.
+        this.#iframe.setAttribute('sandbox', 'allow-same-origin')
         this.#iframe.setAttribute('scrolling', 'no')
     }
     get element() {
