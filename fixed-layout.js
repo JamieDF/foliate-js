@@ -576,9 +576,12 @@ export class FixedLayout extends HTMLElement {
             display: 'none',
             overflow: 'hidden',
         })
-        // Keep the document origin so Firefox can load blob URLs, while
-        // withholding script execution from untrusted book content.
-        iframe.setAttribute('sandbox', 'allow-same-origin')
+        // Firefox needs the document origin to load blob URLs. Other
+        // browsers need scripts for iframe event handling.
+        const sandbox = navigator.userAgent.includes('Firefox')
+            ? 'allow-same-origin'
+            : 'allow-scripts'
+        iframe.setAttribute('sandbox', sandbox)
         iframe.setAttribute('scrolling', 'no')
         iframe.setAttribute('part', 'filter')
         this.#wrapper.append(element)
