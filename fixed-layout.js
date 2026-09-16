@@ -576,9 +576,9 @@ export class FixedLayout extends HTMLElement {
             display: 'none',
             overflow: 'hidden',
         })
-        // Preserve the origin so blob-backed book documents can load.
-        // Scripts remain disabled for untrusted book content.
-        iframe.setAttribute('sandbox', 'allow-same-origin')
+        // Foliate's injected reader bridge needs scripts, and blob-backed
+        // documents need their origin preserved for resource loading.
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin')
         iframe.setAttribute('scrolling', 'no')
         iframe.setAttribute('part', 'filter')
         this.#wrapper.append(element)

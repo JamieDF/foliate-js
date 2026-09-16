@@ -240,9 +240,9 @@ class View {
             display: 'none',
             width: '100%', height: '100%',
         })
-        // Preserve the origin so blob-backed book documents can load.
-        // Scripts remain disabled for untrusted book content.
-        this.#iframe.setAttribute('sandbox', 'allow-same-origin')
+        // Foliate's injected reader bridge needs scripts, and blob-backed
+        // documents need their origin preserved for resource loading.
+        this.#iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin')
         this.#iframe.setAttribute('scrolling', 'no')
     }
     get element() {
